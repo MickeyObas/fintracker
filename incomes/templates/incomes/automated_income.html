@@ -1,0 +1,106 @@
+{% extends 'base.html'%}
+
+{% load static %}
+
+{% block content %}
+
+<div class="main-content">
+    <div class="sub-container">
+        <div class="center">
+            <h1>Automate An Income</h1>
+        </div>
+        <div id="automateIncomeContainer">
+            <form id="automateIncomeForm" method="post">
+                {% csrf_token %}
+                <input type="text" id="title" name="title" placeholder="Enter a title"">
+                <input type="number" step="0.01" name="amount" id="amount" placeholder="Enter an amount">
+                <select name="category" id="">
+                    <option value="">Select category</option>
+                    {% for category in user_categories %}
+                    <option value="{{category.title}}">{{category.title}}</option>
+                    {% endfor %}
+                </select>
+                <select name="frequency" id="">
+                    <option value="">Select frequency</option>
+                    {% for choice in frequency_choices %}
+                    <option value="{{choice.0}}">{{choice.1}}</option>
+                    {% endfor %}
+                </select>
+                <textarea name="notes" id="" cols="30" rows="5" placeholder="Got something extra to say about this expense?"></textarea>
+                <button id="createScheduledIncomeButton">Create Scheduled Income</button>
+            </form>
+        </div>
+        <div id="modalContainer" class="modal-container">
+            <div class="modal">
+                <h1>Income Scheduled</h1>
+                <p id="incomeScheduledNotification"></p>
+                <div class="button-row">
+                    <button id="okay">Okay</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block externaljs %}
+
+<script>
+const createScheduledIncomeButton = document.getElementById('createScheduledIncomeButton');
+const modalContainer = document.getElementById('modalContainer');
+
+document.addEventListener('click', (e) => {
+    if(e.target.id === 'createScheduledIncomeButton'){
+        e.preventDefault();
+        const automateIncomeForm = document.getElementById('automateIncomeForm');
+        if (!validateScheduleIncomeForm(automateIncomeForm)){
+            return false;
+        };
+        const formData = new FormData(automateIncomeForm);
+        const url = "{% url 'incomes:create_automated_income' %}";
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                "X-CSRFToken": "{{csrf_token}}"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const incomeData = data['income']['data'];
+            document.getElementById('incomeScheduledNotification').innerText = `Your Income Item '${incomeData['title']}' for ${incomeData['amount']} has been scheduled to be recorded ${data['income']['frequency']}. `;
+            modalContainer.classList.add('show');
+        })
+    }
+    if(e.target.id === 'okay'){
+        for(let element of automateIncomeForm.elements){
+            element.value = '';
+        }
+        modalContainer.classList.remove('show');
+    }
+})
+
+function validateScheduleIncomeForm(form){
+    if(form.elements['title'].value === ''){
+        alert("Title cannot be empty.");
+        return false;
+    }
+    if(form.elements['amount'].value === ''){
+        alert("Amount cannot be empty.");
+        return false;
+    }
+    if(form.elements['category'].value === ''){
+        alert("TYour income item must have a category. Select Uncategorized under the category field if you want it uncategorized.");
+        return false;
+    }
+    if(form.elements['frequency'].value === ''){
+        alert("Frequency cannot be empty.");
+        return false;
+    }
+    return true;
+}
+
+</script>
+
+{% endblock externaljs %}

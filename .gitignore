@@ -1,0 +1,10 @@
+myenv
+db.sqlite3
+manage.py
+build.txt
+*.pyc
+migrations
+.env
+myenv2
+*.rdb
+celerybeat-schedule

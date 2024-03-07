@@ -1,0 +1,36 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/bootstrap.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="main-container">
+        <div id="registerContainer">
+            <div class="form-wrapper">
+                <form action="" method="post">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <p>{{field.label}}</p>
+                    <p>{{field}}</p>
+                    {% if field.errors %}
+                    {% for error in field.errors %}
+                    <p style="color:red">{{error}}</p>
+                    {% endfor %}
+                    {% endif %}
+                    {% endfor %}
+                    <input type="submit" value="Register">
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,349 @@
+{% extends 'base.html'%}
+
+{% load my_tags %}
+
+{% block prelinks %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>
+{% endblock prelinks %}
+
+{% block title %}Expenses{% endblock title %}
+
+{% block content %}
+
+<div class="main-content">
+    <div class="container">
+        <div class="center">
+            <h1 id="expense-header">My Expenses</h1>
+        </div>
+        <div class="main-row">
+            <div class="expenses-box">
+                <div class="toolbar">
+                    <button id="showSearchBtn" class="btn">Show Search</button>
+                    <div id="searchBox" class="hidden">
+                        <input type="text" name="" id="searchInput">
+                        <button id="searchBtn">Search</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Amount</th>
+                            <th>Notes</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for expense in expense_items %}
+                        <tr data-row="{{forloop.counter}}" data-expenseId="{{expense.id}}">
+                            <td class="title">{{expense.title}}</td>
+                            <td class="category">{{expense.category}}</td>
+                            <td class="amount">{{expense.amount}}</td>
+                            {% if expense.notes %}
+                            <td class="notes">{{expense.notes}}</td>
+                            {% else %}
+                            <td class="notes" style="text-align: center;"></td>
+                            {% endif %}
+                            <td class="buttonCell">
+                                <button class="grey edit-btn">Edit</button>
+                                <button data-id="{{expense.id}}" class="red delete-btn">Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% for i in empty_rows %}
+                        <tr>
+                            <td class="title"></td>
+                            <td class="category"></td>
+                            <td class="amount"></td>
+                            <td lass="notes"></td>
+                            <td class="buttonCell">
+                                <button class="grey" disabled>Edit</button>
+                                <button class="red" disabled>Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <button class="btn expense-add-btn">Add an Expense</button>
+            </div>
+            <div class="expense-chart-box">
+                <canvas id="expenseChart"></canvas>
+            </div>
+            <div id="modalContainer" class="modal-container">
+                <div class="modal">
+                    <h1>Are you sure?</h1>
+                    <p>Are you sure you want to delete the expense item? This action cannot be reversed.</p>
+                    <div class="button-row">
+                        <button id="return">Go Back</button>
+                        <button id="delete">Delete</button>
+                    </div>
+                </div>
+            </div>
+            <div id="addExpenseModalContainer" class="modal-container">
+                <div class="modal">
+                    <h2>Create an Expense item</h2>
+                    <div class="input-group">
+                        <form id="createExpenseForm" method="post">
+                            {% csrf_token %}
+                            <input type="text" name="title" id="" placeholder="Enter a title"/>
+                            <div>
+                                <input type="number" step="0.01" name="amount" id="" placeholder="Enter an amount">
+                                <select name="category" id="">
+                                    <option value="">Select category</option>
+                                    <option value=""></option>
+                                    <option value=""></option>
+                                </select>
+                            </div>
+                            <textarea name="notes" id="" cols="30" rows="5" placeholder="Got something extra to say about this expense?"></textarea>
+                            <div class="button-row">
+                                <button id="return">Go Back</button>
+                                <button id="create">Add Expense</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block externaljs %}
+
+<script>
+let isEditing = false;
+const modalContainer = document.getElementById('modalContainer');
+const addExpenseModalContainer = document.getElementById('addExpenseModalContainer');
+const modalDeleteButton = document.querySelector('.modal button#delete');
+const modalReturnButton = document.querySelector('.modal button#return');
+const expenseTableBody = document.getElementsByTagName('tbody')[0];
+const showSearchBtn = document.getElementById('showSearchBtn');
+
+fetch("{% url  'get_last_six_transactions' %}")
+    .then(response => response.json())
+    .then((data) => {
+        const labels = data['labels'];
+        const expenses = data['expense_amounts'];
+        let expenseIncomeChart = new Chart(document.getElementById('expenseChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Expense',
+                    backgroundColor: 'red',
+                    data: expenses
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+    })
+
+// Delegate event handling
+document.addEventListener('click', (e) => {
+    if(e.target.classList.contains('edit-btn')){
+        // Fetch call to edit the particular expense. Needed (ID, User?)
+        let editRow = e.target.closest('tr');
+        const expenseId = editRow.dataset.expenseid;
+        let cells = editRow.querySelectorAll('td');
+        let expenseData;
+        if(!isEditing){
+            let url = `${expenseId}/edit`;
+            fetch(url, {
+                method: 'GET'
+            })
+            .then((response => response.json()))
+            .then(data => {
+                expenseData = data;
+                isEditing = true;
+            
+                for(let i=0; i < cells.length - 1; i++){
+                    cell = cells[i];
+                    let currentValue = cell.textContent;
+                    if(i === 1){
+                        let expenseCategoryHTML = '<select name="expense-category">';
+                        for(let category of expenseData['user-expense-categories']){
+                            expenseCategoryHTML += `<option value='${category}'${category === expenseData['category'] ? 'selected' : ''}>${category}</option>`;
+                        };
+                        expenseCategoryHTML += '</select>';
+                        cell.innerHTML = expenseCategoryHTML;
+                        continue;
+                    }
+                    cell.innerHTML = `<input type="text" value="${currentValue}" style="width: 100%";/>`
+                }
+                e.target.textContent = "Save";
+            })
+            
+        } else{
+            let url = `${expenseId}/save`;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{csrf_token}}"
+                },
+                body: JSON.stringify({
+                    title: cells[0].querySelector('input').value,
+                    category: cells[1].querySelector('select').value,
+                    amount: cells[2].querySelector('input').value,
+                    notes: cells[3].querySelector('input').value
+                })
+            })
+            .then((response => response.json()))
+            .then(data => {
+                for(let i=0; i < cells.length - 1; i++){
+                    let cell = cells[i];
+                    let newValue = cell.firstChild.tagName === 'INPUT' ? cell.querySelector('input').value : document.getElementsByName('expense-category')[0].value;
+                    cell.innerHTML = `<td>${newValue}</td>`;
+                }
+            })
+            isEditing = false;
+            e.target.textContent = "Edit"
+        }
+    }
+    if(e.target.classList.contains('delete-btn')){
+        modalContainer.classList.add('show');
+        const deleteRow = e.target.closest('tr');
+        const expenseId = deleteRow.dataset.expenseid;
+        // Pass the ID of the expense to the modal button
+        modalDeleteButton.dataset.id = expenseId;
+    }
+    if(e.target.id === 'delete'){
+    // Delete the expense
+    const expenseId = e.target.dataset.id;
+    const url = `${expenseId}/delete`;
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{csrf_token}}'
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        renderTable(data);
+        modalContainer.classList.remove('show');
+    })
+    }
+    if(e.target.classList.contains('expense-add-btn')){
+        // Fetch categories
+        const categoriesUrl = "/categories/{{request.user.id}}/E";
+        fetch(categoriesUrl)
+        .then((response) => response.json())
+        .then((data) => {
+            const categorySelectElement = addExpenseModalContainer.querySelector('select');
+            categorySelectElement.innerHTML = '';
+            data.forEach((category) => {
+                const categoryOption = document.createElement('option');
+                categoryOption.value = category.title;
+                categoryOption.innerText = category.title;
+                categorySelectElement.appendChild(categoryOption);
+            })
+        })
+        // Trigger popup to add an expense
+        addExpenseModalContainer.classList.add('show');
+    }
+    if(e.target.id === 'return'){
+        addExpenseModalContainer.classList.contains('show') ? addExpenseModalContainer.classList.remove('show') : null
+    }
+    if(e.target.id === 'create'){
+        // Create expense object with fetch calls
+        e.preventDefault();
+        const formData = new FormData(e.target.closest('form'));
+        const url = "{% url 'expenses:create_expense_item' %}";
+        fetch(url, {
+            body: formData,
+            method: 'POST'
+        })
+        .then((response) => {
+            if(!response.ok){
+                throw new Error("Whoops, something went wrong with the fetch request.");
+            }
+            return response.json();
+        })
+        .then(data => {
+            renderTable(data);
+            addExpenseModalContainer.classList.remove('show');
+            const expenseForm = e.target.closest('form');
+            expenseForm.title.value = '';
+            expenseForm.amount.value = '';
+            expenseForm.notes.value = '';
+        })
+        .catch((err) =>{
+            console.log("Uh oh, ", err);
+        })
+    }
+    if(e.target.id === 'return' && e.target.closest('#addExpenseModalContainer')){
+        e.preventDefault();
+    }
+})
+
+document.addEventListener('input', (e) => {
+    if(e.target.id === 'searchInput'){
+        // Render table depending on queryString
+        let queryString = e.target.value;
+        const url = `search/?q=${queryString}`
+        fetch(url)
+        .then(response => response.json())
+        .then((data) => {
+            renderTable(data);
+        })
+    }
+})
+
+modalReturnButton.addEventListener('click', (e) => {
+    modalContainer.classList.remove('show');
+})
+
+showSearchBtn.addEventListener('click', (e) => {
+    // Display a search box and a search button
+    const searchBox = document.getElementById('searchBox');
+    if(searchBox.classList.contains('hidden')){
+        searchBox.classList.remove('hidden');
+        e.target.innerText = 'Hide Search';
+    }else{
+        searchBox.classList.add('hidden');
+        e.target.innerText = 'Show Search';
+    }
+})
+
+function renderTable(data){
+    expenseTableBody.innerHTML = '';
+    const emptyRowsNeeded = 5 - data['expenses'].length;
+    data['expenses'].forEach((expense) => {
+        let expenseRow = document.createElement('tr');
+        expenseRow.dataset.expenseid = expense.id;
+        expenseRow.innerHTML = `
+        <td class='title'>${expense.title}</td>
+        <td class='category'>${expense.category_title}</td>
+        <td class='amount'>${expense.amount}</td>
+        <td class='notes'>${expense.notes ? expense.notes : ''}</td>
+        <td class='buttonCell'>
+            <button class="grey edit-btn">Edit</button>
+            <button data-id="${expense.id}" class="red delete-btn">Delete</button>
+        </td>
+        `;
+        expenseTableBody.appendChild(expenseRow);
+    })
+    for(let i=0; i < emptyRowsNeeded; i++){
+        let emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+        <td class='title'></td>
+        <td class='category'></td>
+        <td class='amount'></td>
+        <td class='notes'></td>
+        <td class='buttonCell'>
+            <button class="grey" disabled>Edit</button>
+            <button class="red" disabled>Delete</button>
+        </td>
+        `;
+        expenseTableBody.appendChild(emptyRow);
+    }
+}
+
+</script>
+
+{% endblock externaljs %}

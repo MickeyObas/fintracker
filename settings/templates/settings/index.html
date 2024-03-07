@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="main-content">
+    <div class="container">
+        <h1>Settings</h1>
+        <div id="settingsContainer">
+            <a href="{% url 'categories:categories' %}"><h5>Configure Categories</h5></a>
+            <a href="{% url 'expenses:automated_expense' %}"><h5>Set Automated Expense</h5></a>
+            <a href="{% url 'incomes:automated_income' %}"><h5>Set Automated Income</h5></a>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+

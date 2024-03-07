@@ -1,0 +1,347 @@
+{% extends 'base.html'%}
+
+{% block prelinks %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>
+{% endblock prelinks %}
+
+{% block title %}Incomes{% endblock title %}
+
+{% block content %}
+
+<div class="main-content">
+    <div class="container">
+        <div class="center">
+            <h1 id="expense-header">My Income</h1>
+        </div>
+        <div class="main-row">
+            <div class="incomes-box">
+                <div class="toolbar">
+                    <button id="showSearchBtn" class="btn">Show Search</button>
+                    <div id="searchBox" class="hidden">
+                        <input type="text" name="" id="searchInput">
+                        <button id="searchBtn">Search</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Amount</th>
+                            <th>Notes</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_income in user_incomes %}
+                        <tr data-incomeId="{{user_income.id}}">
+                            <td class="title">{{user_income.title}}</td>
+                            <td class="category">{{user_income.category}}</td>
+                            <td class="amount">{{user_income.amount}}</td>
+                            {% if user_income.notes %}
+                            <td class="notes">{{user_income.notes}}</td>
+                            {% else %}
+                            <td class="notes" style="text-align: center;"></td>
+                            {% endif %}
+                            <td class="buttonCell">
+                                <button class="grey edit-btn">Edit</button>
+                                <button class="red delete-btn">Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% for i in empty_rows %}
+                        <tr>
+                            <td class="title"></td>
+                            <td class="category"></td>
+                            <td class="amount"></td>
+                            <td lass="notes"></td>
+                            <td class="buttonCell">
+                                <button class="grey" disabled>Edit</button>
+                                <button class="red" disabled>Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <button class="btn income-add-btn">Add an Income</button>
+            </div>
+            <div class="expense-chart-box">
+                <canvas id="incomeChart"></canvas>
+            </div>
+            <div id="modalContainer" class="modal-container">
+                <div class="modal">
+                    <h1>Are you sure?</h1>
+                    <p>Are you sure you want to delete the expense item? This action cannot be reversed.</p>
+                    <div class="button-row">
+                        <button id="return">Go Back</button>
+                        <button id="delete">Delete</button>
+                    </div>
+                </div>
+            </div>
+            <div id="addIncomeModalContainer" class="modal-container">
+                <div class="modal">
+                    <h2>Create an Income item</h2>
+                    <div class="input-group">
+                        <form id="createIncomeForm" method="post">
+                            {% csrf_token %}
+                            <input type="text" name="title" id="" placeholder="Enter a title"/>
+                            <div>
+                                <input type="number" step="0.01" name="amount" id="" placeholder="Enter an amount">
+                                <select name="category" id="">
+                                    <option value="">Select category</option>
+                                    <option value=""></option>
+                                    <option value=""></option>
+                                </select>
+                            </div>
+                            <textarea name="notes" id="" cols="30" rows="5" placeholder="Got something extra to say about this income?"></textarea>
+                            <div class="button-row">
+                                <button id="return">Go Back</button>
+                                <button id="create">Add Income</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>           
+        </div>
+
+
+    </div>
+</div>
+
+{% endblock content %}
+
+
+
+{% block externaljs %}
+<script>
+let isEditing = false;
+const modalContainer = document.getElementById('modalContainer');
+const modalDeleteButton = document.querySelector('.modal button#delete');
+const incomeTableBody = document.getElementsByTagName('tbody')[0];
+const modalReturnButton = document.querySelector('.modal button#return');
+const addIncomeModalContainer = document.getElementById('addIncomeModalContainer');
+const showSearchBtn = document.getElementById('showSearchBtn');
+
+fetch("{% url 'get_last_six_transactions' %}")
+.then(response => response.json())
+.then((data) => {
+    const incomes = data['income_amounts'];
+    const labels = data['labels'];
+    let incomeChart = new Chart(document.getElementById('incomeChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Income',
+                backgroundColor: 'green',
+                data: incomes
+            }]
+        }
+    })
+})
+
+
+document.addEventListener('click', (e) => {
+    if(e.target.classList.contains('edit-btn')){
+        let editRow = e.target.closest('tr');
+        const incomeId = editRow.dataset.incomeid;
+        let cells = editRow.querySelectorAll('td');
+        let incomeData;
+        if(!isEditing){
+            let url = `${incomeId}/edit`;
+            fetch(url, {
+                method: 'GET'
+            })
+            .then(response => response.json())
+            .then(data => {
+                incomeData = data;
+                isEditing = true;
+
+                for(let i=0; i < cells.length - 1; i++){
+                    cell = cells[i];
+                    let currentValue = cell.textContent;
+                    if(i === 1){
+                        let incomeCategoryHTML = `<select
+                        name='income-category'>`;
+                        for(let category of incomeData['user-income-categories']){
+                            incomeCategoryHTML += `<option value='${category}' ${category === incomeData['category'] ? 'selected' : ''}>${category}</option>`;
+                        };
+                        incomeCategoryHTML += '</select>';
+                        cell.innerHTML = incomeCategoryHTML;
+                        continue;
+                    };
+                    cell.innerHTML = `<input type='text' value="${currentValue}" style="width: 100%;"/>`
+                }
+                e.target.textContent = "Save";
+            })
+        } else{
+            let url = `${incomeId}/save`;
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{csrf_token}}"
+                },
+                body: JSON.stringify({
+                    title: cells[0].querySelector('input').value,
+                    category: cells[1].querySelector('select').value,
+                    amount: cells[2].querySelector('input').value,
+                    notes: cells[3].querySelector('input').value
+                })
+            })
+            .then((response => response.json()))
+            .then(data => {
+                for(let i=0; i < cells.length - 1; i++){
+                    let cell = cells[i];
+                    let newValue = cell.firstChild.tagName === 'INPUT' ? cell.querySelector('input').value : document.getElementsByName('income-category')[0].value;
+                    cell.innerHTML = `<td>${newValue}</td>`;
+                }
+            })
+            isEditing = false;
+            e.target.textContent = "Edit";
+        }
+
+    }
+    if(e.target.classList.contains('delete-btn')){
+        modalContainer.classList.add('show');
+        const deleteRow = e.target.closest('tr');
+        const incomeId = deleteRow.dataset.incomeid;
+        // Pass the ID of the expense to the modal button
+        modalDeleteButton.dataset.id = incomeId;
+    }
+    if(e.target.id === 'delete'){
+        // Delete the income
+        const incomeId = e.target.dataset.id;
+        const url = `${incomeId}/delete`;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{csrf_token}}'
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            renderTable(data);
+            modalContainer.classList.remove('show');
+        })
+        }
+    if(e.target.classList.contains('income-add-btn')){
+        // Fetch categories
+        const categoriesUrl = "/categories/{{request.user.id}}/I";
+        fetch(categoriesUrl)
+        .then((response) => response.json())
+        .then((data) => {
+            const categorySelectElement = addIncomeModalContainer.querySelector('select');
+            categorySelectElement.innerHTML = '';
+            data.forEach((category) => {
+                const categoryOption = document.createElement('option');
+                categoryOption.value = category.title;
+                categoryOption.innerText = category.title;
+                categorySelectElement.appendChild(categoryOption);
+            })
+        })
+        // Trigger popup to add an expense
+        addIncomeModalContainer.classList.add('show');
+    }    
+    if(e.target.id === 'return'){
+        addIncomeModalContainer.classList.contains('show') ? addIncomeModalContainer.classList.remove('show') : null
+    }
+    if(e.target.id === 'return' && e.target.closest('#addIncomeModalContainer')){
+        e.preventDefault();
+    }
+    if(e.target.id === 'create'){
+        // Create Income object with fetch calls
+        e.preventDefault();
+        const formData = new FormData(e.target.closest('form'));
+        const url = "{% url 'incomes:create_income_item' %}";
+        fetch(url, {
+            body: formData,
+            method: 'POST'
+        })
+        .then((response) => {
+            if(!response.ok){
+                throw new Error("Whoops, something went wrong with the fetch request.");
+            }
+            return response.json();
+        })
+        .then(data => {
+            renderTable(data);
+            addIncomeModalContainer.classList.remove('show');
+            const incomeForm = e.target.closest('form');
+            incomeForm.title.value = '';
+            incomeForm.amount.value = '';
+            incomeForm.notes.value = '';
+        })
+        .catch((err) =>{
+            console.log("Uh oh, ", err);
+        })
+    }
+})
+
+document.addEventListener('input', (e) => {
+    if(e.target.id === 'searchInput'){
+        // Render table depending on queryString
+        let queryString = e.target.value;
+        const url = `search/?q=${queryString}`
+        fetch(url)
+        .then(response => response.json())
+        .then((data) => {
+            renderTable(data);
+        })
+    }
+})
+
+modalReturnButton.addEventListener('click', (e) => {
+    modalContainer.classList.remove('show');
+})
+
+showSearchBtn.addEventListener('click', (e) => {
+    // Display a search box and a search button
+    const searchBox = document.getElementById('searchBox');
+    if(searchBox.classList.contains('hidden')){
+        searchBox.classList.remove('hidden');
+        e.target.innerText = 'Hide Search';
+    }else{
+        searchBox.classList.add('hidden');
+        e.target.innerText = 'Show Search';
+    }
+})
+
+function renderTable(data){
+    incomeTableBody.innerHTML = '';
+    const emptyRowsNeeded = 5 - data['incomes'].length;
+    data['incomes'].forEach((income) => {
+        let incomeRow = document.createElement('tr');
+        incomeRow.dataset.incomeid = income.id;
+        incomeRow.innerHTML = `
+        <td class='title'>${income.title}</td>
+        <td class='category'>${income.category_title}</td>
+        <td class='amount'>${income.amount}</td>
+        <td class='notes'>${income.notes ? income.notes : ''}</td>
+        <td class='buttonCell'>
+            <button class="grey edit-btn">Edit</button>
+            <button data-id="${income.id}" class="red delete-btn">Delete</button>
+        </td>
+        `;
+        incomeTableBody.appendChild(incomeRow);
+    })
+    for(let i=0; i < emptyRowsNeeded; i++){
+        let emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+        <td class='title'></td>
+        <td class='category'></td>
+        <td class='amount'></td>
+        <td <td class='notes'></td>
+        <td class='buttonCell'>
+            <button class="grey" disabled>Edit</button>
+            <button class="red" disabled>Delete</button>
+        </td>
+        `;
+        incomeTableBody.appendChild(emptyRow);
+    }
+}
+
+</script>
+
+{% endblock externaljs%}

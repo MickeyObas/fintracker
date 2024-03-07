@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="main-content">
+    <div class="container">
+        <h2>My Categories</h2>
+        <div id="categoryBox">
+            <div id="expenseCategoryBox">
+                <h3>Expense</h3>
+                {% for category in user_categories %}
+                {% if category.type == 'E' and category.title != 'Uncategorized' %}
+                <div class="category-item" data-id="{{category.id}}">
+                    <p>{{category}}</p>
+                    <a href="#" class="edit-category">Edit</a>
+                    <a href="" style="color: red" class="delete-category">Delete</a>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div  id="incomeCategoryBox">
+                <h3>Income</h3>
+                {% for category in user_categories %}
+                {% if category.type == 'I' and category.title != 'Uncategorized' %}
+                <div class="category-item" data-id="{{category.id}}">
+                    <p>{{category}}</p>
+                    <a href="#" class="edit-category">Edit</a>
+                    <a href="#" style="color: red" class="delete-category">Delete</a>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <button id="addCategoryButton" class="btn">Add Category</button>
+        <div id="modalContainer" class="modal-container">
+            <div class="modal">
+                <h1>Are you sure?</h1>
+                <p>Are you sure you want to delete this category? It will set all corressponding expenses/incomes as uncategorized. This action cannot be reversed.</p>
+                <div class="button-row">
+                    <button id="return">Go Back</button>
+                    <button id="delete">Delete</button>
+                </div>
+            </div>
+        </div>
+        <div id="addCategoryModalContainer" class="modal-container">
+            <div class="modal">
+                <h2>Create a Category</h2>
+                    <form id="createCategoryForm" method="post">
+                        {% csrf_token %}
+                        <input type="text" name="title" id="" placeholder="Enter a title"/>
+                        <select name="type" id="">
+                            <option value="">Select category Type</option>
+                            <option value="E">Expense</option>
+                            <option value="I">Income</option>
+                        </select>
+                        <!-- <div class="automate-row">
+                            <label for="automated">Automate?</label>
+                            <input type="checkbox" name="automated" id="automated">
+                        </div> -->
+                        <div class="button-row">
+                            <button id="return">Go Back</button>
+                            <button id="create">Create Category</button>
+                        </div>
+                    </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+{% block externaljs %}
+
+<script>
+let isEditing = false;
+const modalContainer = document.getElementById('modalContainer');
+const modalDeleteButton = document.querySelector('.modal button#delete');
+const modalReturnButton = document.querySelector('.modal button#return');
+const addCategoryModalContainer = document.getElementById('addCategoryModalContainer');
+const categoryBox = document.getElementById('categoryBox');
+const expenseCategoryBox = document.getElementById('expenseCategoryBox');
+const incomeCategoryBox = document.getElementById('incomeCategoryBox');
+
+document.addEventListener('click', (e) => {
+    if(e.target.classList.contains('edit-category')){
+        isEditing = true;
+        e.preventDefault();
+        const categoryItem = e.target.closest('.category-item');
+        const originalCategoryValue = categoryItem.querySelector('p').textContent;
+        const categoryId = categoryItem.dataset.id;
+        // Get the category from API
+        const url = "{% url 'categories:get_category' %}";
+        fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+                categoryId: categoryId
+            }),
+            headers: {
+                'X-CSRFToken': "{{csrf_token}}"
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Change to textbox
+            categoryItem.innerHTML = `
+            <p><input type='text' value='${originalCategoryValue}'</p>
+                <a href="#" class="save-category">Save</a>
+                <a href="" style="color: red" class="delete-category">Delete</a>
+            `;
+        })
+    }
+    if(e.target.classList.contains('save-category')){
+        const url = "{% url 'categories:save_category' %}";
+        const categoryItem = e.target.closest('.category-item');
+        const categoryId = categoryItem.dataset.id;
+        const updatedCategoryValue = categoryItem.querySelector('input').value.trim();
+        // Save the category's changes
+        fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+                categoryId: categoryId,
+                updatedCategoryValue: updatedCategoryValue
+            }),
+            headers: {
+                'X-CSRFToken': '{{csrf_token}}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Restore original HTML
+            categoryItem.innerHTML = `
+            <p>${data['category']['title']}</p>
+                <a href="#" class="edit-category">Edit</a>
+                <a href="" style="color: red" class="delete-category">Delete</a>
+            `;
+        })
+    }
+    if(e.target.classList.contains('delete-category')){
+        e.preventDefault();
+        const categoryItem = e.target.closest('.category-item');
+        const categoryId = categoryItem.dataset.id;
+        modalContainer.classList.add('show');
+        modalDeleteButton.dataset.categoryId = categoryId;
+    }
+    if(e.target.id === 'delete'){
+        const url = "{% url 'categories:delete_category'%}";
+        const categoryId = e.target.dataset.categoryId;
+        fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+                categoryId: categoryId,
+            }),
+            headers: {
+                'X-CSRFToken': '{{csrf_token}}'
+            }
+        })
+        .then(response => response.json())
+        .then((data) => {
+            renderCategories(data);
+            modalContainer.classList.remove('show');
+        })
+    }
+    if(e.target.id === 'return'){
+        e.preventDefault();
+        addCategoryModalContainer.classList.remove('show');
+    }
+    if(e.target.id === 'addCategoryButton'){
+        addCategoryModalContainer.classList.add('show');
+    }
+    if(e.target.id === 'create'){
+        e.preventDefault();
+        const formData = new FormData(e.target.closest('#createCategoryForm'));
+        const url = "{% url 'categories:create_category' %}";
+        // Fetch call to create category
+        fetch(url, {
+            body: formData,
+            method: 'POST'
+        })
+        .then((response) => {
+            if(!response.ok){
+                throw new Error("Whoops, something went wrong with the fetch request.");
+            }
+            return response.json();
+        })
+        .then(data => {
+            renderCategories(data);
+            addCategoryModalContainer.classList.remove('show');
+        })
+    }
+})
+
+function renderCategories(data){
+    categoryBox.innerHTML = '';
+            expenseCategoryBox.innerHTML = '<h3>Expense</h3>';
+            incomeCategoryBox.innerHTML = '<h3>Incomes</h3>';
+            data['user_categories'].forEach((category => {
+                if(category['type'] === 'E' && category['title'] !== 'Uncategorized'){
+                    let expenseCategoryItem = document.createElement('div');
+                    expenseCategoryItem.classList.add('category-item');
+                    expenseCategoryItem.dataset.id = category['id'];
+                    expenseCategoryItem.innerHTML = `
+                        <p>${category['title']}</p>
+                        <a href="#" class="edit-category">Edit</a>
+                        <a href="" style="color: red" class="delete-category">Delete</a>
+                    `;
+                    expenseCategoryBox.appendChild(expenseCategoryItem);
+                }
+                else if(category['type'] === 'I' && category['title'] !== 'Uncategorized'){
+                    let incomeCategoryItem = document.createElement('div');
+                    incomeCategoryItem.classList.add('category-item');
+                    incomeCategoryItem.dataset.id = category['id'];
+                    incomeCategoryItem.innerHTML = `
+                        <p>${category['title']}</p>
+                        <a href="#" class="edit-category">Edit</a>
+                        <a href="" style="color: red" class="delete-category">Delete</a>
+                    `;
+                    incomeCategoryBox.appendChild(incomeCategoryItem);
+                }
+            }));
+            categoryBox.appendChild(expenseCategoryBox);
+            categoryBox.appendChild(incomeCategoryBox);
+};
+</script>
+
+{% endblock externaljs %}

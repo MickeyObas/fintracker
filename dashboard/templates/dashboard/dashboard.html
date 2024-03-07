@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% load static %}
+
+{% block prelinks %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>
+{% endblock prelinks %}
+
+{% block content %}
+    <!-- Main Content -->
+
+    <div class="main-content">
+        <div class="container">
+            <h1>Welcome, {% if request.user.is_authenticated %}{{request.user.first_name}}{% else %}Guest{% endif %}!</h1>
+            <div class="main-row">
+                <div class="chart-box">
+                    <canvas id="expenseIncomeChart"></canvas>
+                </div>
+                <div class="side-box">
+                    <div class="income-sub-box">
+                        <h2>Income</h2>
+                        <div class="income-items">
+                            <table>
+                            {% for income_item in user_income_items %}
+                            <tr>
+                                <td>{{income_item.category}}</td>
+                                <td>${{income_item.amount}}</td>
+                                <td>{{income_item.created|date:"j-n-y"}}</td>
+                            </tr>
+                            {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                    <div class="expense-sub-box">
+                        <h2>Expenses</h2>
+                        <div class="expense-items">
+                            <table>
+                            {% for expense_item in user_expense_items %}
+                            <tr>
+                                <td>{{expense_item.category}}</td>
+                                <td>${{expense_item.amount}}</td>
+                                <td>{{expense_item.created|date:"j-n-y"}}</td>
+                            </tr>
+                           {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock content %}
+
+{% block externaljs %}
+
+<script>
+    fetch("{% url  'get_last_six_transactions' %}")
+    .then(response => response.json())
+    .then((data) => {
+        const labels = data['labels'];
+        const expenses = data['expense_amounts'];
+        const incomes = data['income_amounts'];
+        let expenseIncomeChart = new Chart(document.getElementById('expenseIncomeChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Expense',
+                    backgroundColor: 'red',
+                    data: expenses
+                }, {
+                    label: 'Income',
+                    backgroundColor: 'green',
+                    data: incomes
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+    })
+
+</script>
+
+{% endblock externaljs %}
