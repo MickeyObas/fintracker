@@ -5,7 +5,7 @@ from .models import IncomeItem, ScheduledIncomeItem
 
 @admin.register(IncomeItem)
 class ExpenseItemModelAdmin(admin.ModelAdmin):
-    list_display = ['user', 'title', 'amount', 'category', 'notes', 'created']
+    list_display = ['id', 'user', 'title', 'amount', 'category', 'notes', 'created']
 
 
 @admin.register(ScheduledIncomeItem)

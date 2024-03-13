@@ -3,7 +3,7 @@ from django.contrib import admin
 from .models import ExpenseItem, ScheduledExpenseItem
 @admin.register(ExpenseItem)
 class ExpenseItemModelAdmin(admin.ModelAdmin):
-    list_display = ['user', 'title', 'amount', 'category', 'notes', 'created']
+    list_display = ['id', 'user', 'title', 'amount', 'category', 'notes', 'created']
 
 
 @admin.register(ScheduledExpenseItem)
